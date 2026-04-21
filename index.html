@@ -4,6 +4,28 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ProjectScope — Brief client intelligent</title>
+    <script>
+      // global shim for libraries that expect it
+      window.global = window;
+
+      // Workaround for "Cannot set property fetch of #<Window> which has only a getter"
+      // Some libraries try to assign to window.fetch which fails in restricted iframes.
+      (function() {
+        try {
+          const _fetch = window.fetch;
+          if (_fetch) {
+            Object.defineProperty(window, 'fetch', {
+              configurable: true,
+              enumerable: true,
+              get: function() { return _fetch; },
+              set: function() { console.log("ProjectScope: Blocked attempt to overwrite window.fetch"); }
+            });
+          }
+        } catch (e) {
+          // Fallback if defineProperty fails
+        }
+      })();
+    </script>
     <meta name="description" content="Collectez les informations de vos projets web et mobiles en 5 minutes avec ProjectScope." />
     <meta property="og:title" content="ProjectScope" />
     <meta property="og:description" content="Outil moderne de brief projet pour freelances et agences." />
