@@ -1,0 +1,6 @@
+{
+  "name": "ProjectScope",
+  "description": "Un outil moderne pour collecter les besoins de projets web et mobiles, avec un dashboard admin et notifications email.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
