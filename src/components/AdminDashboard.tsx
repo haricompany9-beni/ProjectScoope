@@ -9,7 +9,8 @@ import {
   updateDoc, 
   deleteDoc 
 } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { onAuthStateChanged, User } from 'firebase/auth'; // Added User type
+import { db, auth, signInWithGoogle } from '../lib/firebase'; // Added auth and signIn
 import { Project } from '../types';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -23,31 +24,48 @@ import {
   CheckCircle,
   Clock,
   AlertCircle,
-  X
+  X,
+  Lock, // Added Lock icon
+  LogOut // Added LogOut icon
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 
+const ADMIN_EMAIL = 'haricompany9@gmail.com';
+
 export function AdminDashboard() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [password, setPassword] = useState('');
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
 
-  // MVP simple password check
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (password === 'admin123') { // Replace with env variable in production
-      setIsAuthenticated(true);
-    } else {
-      alert('Mot de passe incorrect');
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setCurrentUser(user);
+      setIsAuthLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const handleLogin = async () => {
+    try {
+      await signInWithGoogle();
+    } catch (error) {
+      console.error('Login failed', error);
+      alert('Échec de la connexion Google');
     }
   };
 
+  const handleLogout = () => {
+    auth.signOut();
+  };
+
+  const isAuthorized = currentUser && currentUser.email === ADMIN_EMAIL;
+
   useEffect(() => {
-    if (!isAuthenticated) return;
+    if (!isAuthorized) return;
 
     const q = query(collection(db, 'projects'), orderBy('createdAt', 'desc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -56,11 +74,11 @@ export function AdminDashboard() {
         ...doc.data()
       })) as Project[];
       setProjects(projectsData);
-      setLoading(loading && false);
+      setLoading(false);
     });
 
     return () => unsubscribe();
-  }, [isAuthenticated]);
+  }, [isAuthorized]);
 
   const updateStatus = async (projectId: string, newStatus: string) => {
     await updateDoc(doc(db, 'projects', projectId), { status: newStatus });
@@ -103,7 +121,15 @@ export function AdminDashboard() {
     return matchesSearch && matchesStatus;
   });
 
-  if (!isAuthenticated) {
+  if (isAuthLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="w-12 h-12 border-4 border-violet-200 border-t-violet-600 rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!isAuthorized) {
     return (
       <div className="max-w-md mx-auto px-4 py-24 text-center">
         <motion.div 
@@ -112,21 +138,34 @@ export function AdminDashboard() {
           className="bg-white p-8 rounded-3xl shadow-xl border border-slate-200"
         >
           <div className="w-16 h-16 bg-violet-100 text-violet-600 rounded-full flex items-center justify-center mx-auto mb-6">
-            <Clock className="w-8 h-8" />
+            <Lock className="w-8 h-8" />
           </div>
-          <h1 className="text-2xl font-bold mb-6">Accès Administration</h1>
-          <form onSubmit={handleLogin} className="space-y-4">
-            <input 
-              type="password" 
-              placeholder="Mot de passe (admin123)" 
-              className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-violet-600 outline-none"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-            <button className="w-full py-4 bg-violet-600 text-white rounded-xl font-bold hover:bg-violet-700 transition-all">
-              Se connecter
+          <h1 className="text-2xl font-bold mb-4">Espace Réservé</h1>
+          <p className="text-slate-500 mb-8">
+            Seul l'administrateur ({ADMIN_EMAIL}) peut accéder à ce dashboard.
+          </p>
+
+          {!currentUser ? (
+            <button 
+              onClick={handleLogin}
+              className="w-full flex items-center justify-center gap-3 py-4 bg-white border border-slate-200 text-slate-700 rounded-xl font-bold hover:bg-slate-50 transition-all shadow-sm"
+            >
+              <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-6 h-6" alt="Google" referrerPolicy="no-referrer" />
+              Se connecter avec Google
             </button>
-          </form>
+          ) : (
+            <div className="space-y-4">
+              <p className="p-3 bg-red-50 text-red-600 rounded-xl text-sm font-medium">
+                Accès refusé pour : {currentUser.email}
+              </p>
+              <button 
+                onClick={handleLogout}
+                className="w-full py-3 bg-slate-100 text-slate-700 rounded-xl font-bold hover:bg-slate-200"
+              >
+                Changer de compte
+              </button>
+            </div>
+          )}
         </motion.div>
       </div>
     );
@@ -136,8 +175,17 @@ export function AdminDashboard() {
     <div className="max-w-7xl mx-auto px-4 py-8">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
         <div>
-          <h1 className="text-3xl font-black text-slate-900 tracking-tight">Dashboard Admin</h1>
-          <p className="text-slate-500">Gérez vos demandes de projets entrants.</p>
+          <div className="flex items-center gap-3 mb-1">
+            <h1 className="text-3xl font-black text-slate-900 tracking-tight">Dashboard Admin</h1>
+            <button 
+              onClick={handleLogout} 
+              className="p-2 text-slate-400 hover:text-red-500 transition-colors"
+              title="Déconnexion"
+            >
+              <LogOut className="w-5 h-5" />
+            </button>
+          </div>
+          <p className="text-slate-500 italic text-sm">Bienvenue, {currentUser.email}</p>
         </div>
         <button 
           onClick={exportCSV}

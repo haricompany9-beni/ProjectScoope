@@ -16,12 +16,7 @@ export function Layout() {
             </span>
           </Link>
           <div className="flex gap-4">
-            <Link 
-              to="/admin" 
-              className="text-sm font-medium text-slate-500 hover:text-violet-600 transition-colors"
-            >
-              Admin
-            </Link>
+            {/* Admin entry hidden from public view */}
           </div>
         </div>
       </nav>
